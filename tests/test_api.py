@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from src.tarang.api import app
+from tarang.api import app
 
 
 client = TestClient(app)
@@ -27,5 +27,4 @@ def test_predict_validates_network_event_payload() -> None:
             "failed_connections": 0,
         },
     )
-    # A clean 503 is expected until local model artifacts have been trained.
     assert response.status_code in (200, 503)
