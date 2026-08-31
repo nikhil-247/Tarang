@@ -1,0 +1,10 @@
+timestamp,src_bytes,dst_bytes,duration_ms,packet_count,protocol,dst_port,dns_query,tls,failed_connections,label
+2026-08-30T09:00:00Z,1200,3400,850,24,HTTPS,443,api.example.com,1,0,benign
+2026-08-30T09:02:00Z,900,2600,620,18,TCP,443,,1,0,benign
+2026-08-30T09:04:00Z,300,450,40,12,UDP,53,example.org,0,0,benign
+2026-08-30T09:06:00Z,7600,1200,210,8,TCP,54321,x9q7a.test,0,7,suspicious
+2026-08-30T09:08:00Z,6200,950,180,11,UDP,60123,,0,9,suspicious
+2026-08-30T09:10:00Z,420000,900,900,180,TLS,443,edge-storage.example,1,1,exfiltration
+2026-08-30T09:12:00Z,380000,700,720,155,TCP,8443,upload-cache.example,1,0,exfiltration
+2026-08-30T09:14:00Z,120,80,55,26,TCP,61500,,0,18,scan
+2026-08-30T09:16:00Z,180,120,70,31,TCP,53421,,0,22,scan
