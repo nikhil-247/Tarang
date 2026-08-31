@@ -12,7 +12,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      - name: Install package and test dependencies
+        run: pip install -e ".[test]"
       - name: Run tests
         run: pytest -q
+      - name: Smoke test CLI
+        run: python scripts/train.py --input data/network_events.csv --model-dir /tmp/tarang-models
