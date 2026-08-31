@@ -16,5 +16,7 @@ jobs:
         run: pip install -e ".[test]"
       - name: Run tests
         run: pytest -q
-      - name: Smoke test CLI
-        run: python scripts/train.py --input data/network_events.csv --model-dir /tmp/tarang-models
+      - name: Generate demo dataset
+        run: python scripts/generate_dataset.py --rows 1200 --output /tmp/network_events.csv
+      - name: Smoke test training
+        run: python scripts/train.py --input /tmp/network_events.csv --model-dir /tmp/tarang-models
