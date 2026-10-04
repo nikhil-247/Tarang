@@ -47,6 +47,21 @@ benign-only training   labeled training
 
 ## Reproducible NSL-KDD benchmark
 
+The current benchmark result is from an untouched **22,544-row NSL-KDD test set**. The pre-specified 50/50 hybrid achieved **76.41% accuracy, 96.88% precision, 60.50% recall and 74.49% F1**, with **250 false positives** and **5,069 false negatives**. Full metrics, confusion matrix and the sensitivity experiment are in [docs/NSL_KDD_RESULTS.md](docs/NSL_KDD_RESULTS.md).
+
+| Model | Accuracy | Precision | Recall | F1 |
+|---|---:|---:|---:|---:|
+| Isolation Forest | 78.38% | 93.71% | 66.48% | 77.78% |
+| Random Forest | 73.10% | 96.83% | 54.53% | 69.77% |
+| **Hybrid 50/50** | **76.41%** | **96.88%** | **60.50%** | **74.49%** |
+
+This benchmark is the project’s current evidence baseline; it is not a claim of production detection performance.
+
+### Run locally
+
+`python scripts/download_nsl_kdd.py`
+`python scripts/benchmark_nsl_kdd.py`
+
 NSL-KDD is used because it has a fixed train/test benchmark structure and can be downloaded and verified automatically. The repository does not hard-code benchmark numbers; the workflow generates them.
 
 ### Local run
