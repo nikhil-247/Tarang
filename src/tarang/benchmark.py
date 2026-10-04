@@ -60,7 +60,7 @@ class HybridBenchmarkModel:
 
 def load_nsl_kdd(path: str | Path) -> pd.DataFrame:
     path = Path(path)
-    frame = pd.read_csv(path, header=None, names=NSLKDD_COLUMNS)
+    frame = pd.read_csv(path, sep="\t", header=None, names=NSLKDD_COLUMNS)
     if frame.shape[1] != len(NSLKDD_COLUMNS):
         raise ValueError(f"Expected {len(NSLKDD_COLUMNS)} NSL-KDD columns, got {frame.shape[1]}.")
     frame["label"] = frame["label"].astype(str).str.strip().str.lower().str.rstrip(".")
