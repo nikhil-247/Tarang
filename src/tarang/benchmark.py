@@ -117,7 +117,12 @@ def binary_metrics(y_true: np.ndarray, y_pred: np.ndarray, score: np.ndarray | N
         metrics["average_precision"] = round(float(average_precision_score(y_true, score)), 4)
     return metrics
 
-def fit_hybrid(train_df: pd.DataFrame, validation_size: float = 0.20, random_state: int = 42) -> tuple[HybridBenchmarkModel, dict]:
+def fit_hybrid(
+    train_df: pd.DataFrame,
+    validation_size: float = 0.20,
+    random_state: int = 42,
+    tune_weight: bool = False,
+) -> tuple[HybridBenchmarkModel, dict]:
     y = binary_labels(train_df)
     train_part, val_part = train_test_split(
         train_df,
@@ -161,12 +166,16 @@ def fit_hybrid(train_df: pd.DataFrame, validation_size: float = 0.20, random_sta
 
     if_min, if_max = float(if_scores.min()), float(if_scores.max())
     if_norm = _minmax(if_scores, if_min, if_max)
-    best_weight, best_threshold, best_f1 = 0.5, 0.5, -1.0
-    for weight in np.linspace(0.1, 0.9, 17):
-        candidate_score = weight * if_norm + (1.0 - weight) * rf_scores
-        candidate_threshold, candidate_f1 = _best_threshold(y_val, candidate_score)
-        if candidate_f1 > best_f1:
-            best_weight, best_threshold, best_f1 = float(weight), candidate_threshold, candidate_f1
+    if tune_weight:
+        best_weight, best_threshold, best_f1 = 0.5, 0.5, -1.0
+        for weight in np.linspace(0.1, 0.9, 17):
+            candidate_score = weight * if_norm + (1.0 - weight) * rf_scores
+            candidate_threshold, candidate_f1 = _best_threshold(y_val, candidate_score)
+            if candidate_f1 > best_f1:
+                best_weight, best_threshold, best_f1 = float(weight), candidate_threshold, candidate_f1
+    else:
+        best_weight = 0.5
+        best_threshold, _ = _best_threshold(y_val, best_weight * if_norm + (1.0 - best_weight) * rf_scores)
     hybrid_threshold = best_threshold
 
     model = HybridBenchmarkModel(
@@ -222,6 +231,7 @@ def evaluate(model: HybridBenchmarkModel, test_df: pd.DataFrame) -> dict:
             "isolation_forest_training": "benign training rows only",
             "threshold_selection": "validation split from KDDTrain+",
             "test_usage": "untouched until final evaluation",
+            "hybrid_fusion": "pre-specified 50/50 IF anomaly + RF attack probability",
         },
         "rows": {
             "train": int(len(test_df) + 0),  # overwritten by caller when saved
