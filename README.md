@@ -1,164 +1,103 @@
-# Tarang — Intelligent Network Threat Detection Platform
+# Tarang — Network Threat Detection Platform
 
-Tarang is a defensive network-security analytics prototype that converts network-flow metadata into explainable risk signals. It combines protocol-aware feature engineering, unsupervised anomaly detection, and supervised threat classification, with both CLI and REST API entry points.
+Tarang is a defensive network-security analytics project that turns network-flow metadata into explainable threat signals. It combines a supervised Random Forest classifier with an unsupervised Isolation Forest detector and exposes the pipeline through CLI and FastAPI interfaces.
 
-> **Research/demo scope:** the bundled records are synthetic. The project is designed to demonstrate an end-to-end ML engineering workflow and must not be treated as a production intrusion-prevention system without additional validation and security controls.
+> **Evaluation policy:** the original synthetic dataset is retained as a development smoke test only. The headline model evaluation is now defined against the public NSL-KDD benchmark with an untouched test set.
 
-## Highlights
+## What changed
 
-- Protocol-aware features for TCP, UDP, DNS, HTTP, HTTPS, and TLS-like events
-- Shannon entropy and traffic-rate features for suspicious DNS/network behavior
-- Hybrid **Isolation Forest + Random Forest** detection pipeline
-- Held-out evaluation with accuracy, macro F1, weighted F1, and per-class report
-- Batch CSV inference with risk levels and confidence scores
-- FastAPI service with `/health` and `/v1/predict`
-- Pydantic request validation and deterministic model feature ordering
-- Automated tests and GitHub Actions CI
-- Docker-ready runtime for the scoring API
+- Hybrid Isolation Forest + Random Forest architecture retained.
+- Isolation Forest is trained on benign training rows for the benchmark workflow.
+- NSL-KDD KDDTrain+ / KDDTest+ download and checksum verification.
+- Native benchmark preprocessing: numeric imputation + standardization and categorical one-hot encoding.
+- Thresholds are tuned only on a validation split from KDDTrain+.
+- KDDTest+ is not used for training or threshold selection.
+- Metrics include accuracy, precision, recall, F1, balanced accuracy, ROC-AUC, average precision and a 2x2 confusion matrix.
+- Per-record benchmark predictions and protocol metadata are exported.
+- GitHub Actions runs the benchmark on pushes to main and stores the evidence bundle as an artifact.
 
 ## Architecture
 
 ```text
-                    +----------------------+
-                    | Network-flow events  |
-                    +----------+-----------+
-                               |
-                               v
-                    +----------------------+
-                    | Input validation      |
-                    | schema + ranges       |
-                    +----------+-----------+
-                               |
-                               v
-                    +----------------------+
-                    | Feature engineering   |
-                    | rates + ratios + DNS  |
-                    | entropy + protocols   |
-                    +----------+-----------+
-                               |
-                     +---------+---------+
-                     |                   |
-                     v                   v
-              +-------------+     +-------------+
-              | Isolation   |     | Random      |
-              | Forest      |     | Forest      |
-              | anomaly     |     | classification|
-              +------+------+     +------+------+
-                     |                   |
-                     +---------+---------+
-                               v
-                    +----------------------+
-                    | Risk + confidence    |
-                    | analyst-facing score |
-                    +----------+-----------+
-                               |
-                 +-------------+-------------+
-                 |                           |
-                 v                           v
-             CSV reports              FastAPI service
+Raw network records
+       |
+       v
+Schema validation
+       |
+       +-----------------------------+
+       |                             |
+       v                             v
+Native benchmark              Existing flow pipeline
+preprocessing                 (development path)
+       |
+       v
+  +----+-------------------+
+  |                        |
+  v                        v
+Isolation Forest       Random Forest
+benign-only training   labeled training
+  |                        |
+  +-----------+------------+
+              v
+       hybrid threat score
+              |
+              v
+ metrics + predictions + API
 ```
 
-## Repository layout
+## Reproducible NSL-KDD benchmark
+
+NSL-KDD is used because it has a fixed train/test benchmark structure and can be downloaded and verified automatically. The repository does not hard-code benchmark numbers; the workflow generates them.
+
+### Local run
+
+```bash
+python scripts/download_nsl_kdd.py
+python scripts/benchmark_nsl_kdd.py
+```
+
+Outputs:
 
 ```text
-Tarang/
-├── .github/workflows/ci.yml
-├── data/network_events.csv
-├── docs/
-│   ├── ARCHITECTURE.md
-│   └── THREAT_MODEL.md
-├── scripts/
-│   ├── generate_dataset.py
-│   ├── infer.py
-│   └── train.py
-├── src/tarang/
-│   ├── __init__.py
-│   ├── api.py
-│   ├── detector.py
-│   └── features.py
-├── tests/
-│   ├── test_api.py
-│   └── test_features.py
-├── Dockerfile
-├── .gitignore
-└── requirements.txt
+artifacts/nsl-kdd/
+├── benchmark_protocol.json
+├── features.csv
+├── hybrid_nsl_kdd.joblib
+├── metrics.json
+└── test_predictions.csv
 ```
 
-## Quick start
+### Benchmark protocol
 
-### 1. Install
+1. Download and checksum the fixed training and test files.
+2. Split KDDTrain+ into train/validation.
+3. Fit preprocessing only on the training partition.
+4. Train Random Forest on labeled training rows.
+5. Train Isolation Forest on benign training rows only.
+6. Tune each model threshold and the hybrid threshold on validation.
+7. Evaluate once on untouched KDDTest+.
+8. Export metrics and row-level predictions.
 
-```bash
-python -m venv .venv
-# Windows
-.venv\\Scripts\\activate
-# macOS/Linux
-source .venv/bin/activate
+### Honest interview framing
 
-pip install -r requirements.txt
-```
+Do not lead with the old 100% synthetic accuracy. The defensible statement is:
 
-### 2. Generate a reproducible dataset
+> My first version used synthetic traffic to validate the feature pipeline and reached 100%, but I treated that as a development smoke test rather than model evidence. I moved the benchmark to NSL-KDD, kept Isolation Forest truly unsupervised by training it only on benign training data, selected thresholds on validation, and reported precision, recall, F1 and the confusion matrix on the untouched test set.
 
-The committed CSV is a small example. For training, generate a larger synthetic dataset:
+## Existing development path
 
-```bash
-python scripts/generate_dataset.py --rows 2500 --output data/network_events.csv
-```
+The original compact flow pipeline in `src/tarang/features.py` is still useful for live/demo events. The new benchmark adapter intentionally uses NSL-KDD's native features rather than forcing a lossy nine-field mapping. This preserves a comparable hybrid architecture without inventing fields the benchmark does not contain.
 
-### 3. Train and evaluate
-
-```bash
-python scripts/train.py --input data/network_events.csv --model-dir artifacts
-```
-
-The command creates local model artifacts plus:
-
-- `artifacts/metrics.json`
-- `artifacts/predictions.csv`
-- `artifacts/isolation_forest.joblib`
-- `artifacts/random_forest.joblib`
-
-The reported metrics are **held-out results on the generated synthetic dataset**.
-
-### 4. Batch inference
-
-```bash
-python scripts/infer.py \
-  --input data/network_events.csv \
-  --model-dir artifacts \
-  --output reports/predictions.csv
-```
-
-### 5. Run the REST API
+## API
 
 ```bash
 uvicorn tarang.api:app --host 0.0.0.0 --port 8000
 ```
 
-Check health:
+Endpoints:
 
-```bash
-curl http://localhost:8000/health
-```
-
-Score one event:
-
-```bash
-curl -X POST http://localhost:8000/v1/predict \
-  -H "Content-Type: application/json" \
-  -d '{
-    "src_bytes": 7600,
-    "dst_bytes": 1200,
-    "duration_ms": 210,
-    "packet_count": 8,
-    "protocol": "TCP",
-    "dst_port": 54321,
-    "dns_query": "x9q7a.test",
-    "tls": 0,
-    "failed_connections": 7
-  }'
-```
+- `GET /health`
+- `POST /v1/predict`
 
 ## Testing
 
@@ -166,27 +105,26 @@ curl -X POST http://localhost:8000/v1/predict \
 pytest -q
 ```
 
-The CI workflow runs the test suite automatically on pushes and pull requests.
+CI validates the Python test suite and the separate NSL-KDD benchmark workflow.
 
-## Model and feature design
+## Production-readiness roadmap
 
-Tarang currently combines two complementary approaches:
+- calibrated probabilities
+- temporal and cross-domain validation
+- CICIDS2017 second-benchmark replication
+- model/data version registry
+- feature drift monitoring
+- alert deduplication and analyst feedback
+- authenticated ingestion and service-to-service TLS
+- structured observability
 
-1. **Isolation Forest** surfaces observations that differ from learned traffic patterns without requiring labels for every event.
-2. **Random Forest** classifies known demonstration classes when labeled training records are available.
+## Limitations
 
-Engineered features include byte ratios, bytes per packet, packets per second, DNS entropy, DNS length, port indicators, failed-connection rate, and protocol one-hot indicators.
+NSL-KDD is an established benchmark, not a complete representation of modern enterprise traffic. Benchmark results should be treated as evidence of reproducibility and generalization on that benchmark, not as a guarantee of production detection performance.
 
-## Operational considerations
+## References
 
-For a real deployment, the next engineering steps would include authenticated ingestion, TLS, network controls, structured logging, model/version registry, probability calibration, drift monitoring, representative temporal validation, packet/flow parsers, alert deduplication, analyst feedback loops, and a controlled review workflow for high-risk events.
-
-See [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) for safety boundaries and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the component design.
-
-## Ethical and defensive use
-
-Use Tarang only on network telemetry you are authorized to analyze. The repository is intentionally limited to synthetic data and passive analytics; it does not contain exploit code or an active traffic-blocking mechanism.
-
-## License
-
-MIT
+- UNB Canadian Institute for Cybersecurity: https://www.unb.ca/cic/datasets/nsl.html
+- Zenodo pinned NSL-KDD copy used by the downloader: https://zenodo.org/records/17424143
+- Scikit-learn IsolationForest: https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.IsolationForest.html
+- Scikit-learn RandomForestClassifier: https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.RandomForestClassifier.html
