@@ -182,10 +182,11 @@ def fit_hybrid(train_df: pd.DataFrame, validation_size: float = 0.20, random_sta
         feature_names=list(preprocessor.get_feature_names_out()),
     )
 
+    hybrid_validation_score = best_weight * if_norm + (1.0 - best_weight) * rf_scores
     validation_metrics = {
         "isolation_forest": binary_metrics(y_val, (if_scores >= if_threshold).astype(int), if_scores),
         "random_forest": binary_metrics(y_val, (rf_scores >= rf_threshold).astype(int), rf_scores),
-        "hybrid": binary_metrics(y_val, (hybrid_score >= hybrid_threshold).astype(int), hybrid_score),
+        "hybrid": binary_metrics(y_val, (hybrid_validation_score >= hybrid_threshold).astype(int), hybrid_validation_score),
     }
     return model, validation_metrics
 
@@ -253,7 +254,7 @@ def benchmark_predictions(model: HybridBenchmarkModel, test_df: pd.DataFrame) ->
     if_scores = -model.anomaly_model.decision_function(X_test)
     rf_scores = model.classifier.predict_proba(X_test)[:, 1]
     if_norm = _minmax(if_scores, model.if_min, model.if_max)
-    hybrid_score = 0.5 * if_norm + 0.5 * rf_scores
+    hybrid_score = model.hybrid_weight * if_norm + (1.0 - model.hybrid_weight) * rf_scores
     frame = test_df[["label", "difficulty"]].copy()
     frame["true_binary"] = binary_labels(test_df)
     frame["if_score"] = if_scores
