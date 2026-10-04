@@ -4,6 +4,16 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    paths:
+      - 'src/tarang/**'
+      - 'scripts/**'
+      - 'requirements.txt'
+      - 'pyproject.toml'
+      - '.github/workflows/nsl-kdd-benchmark.yml'
+
+concurrency:
+  group: nsl-kdd-benchmark-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   benchmark:
