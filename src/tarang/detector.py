@@ -47,7 +47,11 @@ class TarangDetector:
             random_state=42,
             n_jobs=-1,
         )
-        anomaly.fit(X)
+        benign_labels = {"benign", "normal", "0", "normal."}
+        benign_mask = y.str.lower().isin(benign_labels)
+        if benign_mask.sum() < 25:
+            raise ValueError("Need at least 25 benign/normal events to train the anomaly detector without label contamination")
+        anomaly.fit(X[benign_mask])
 
         classifier = RandomForestClassifier(
             n_estimators=300,
