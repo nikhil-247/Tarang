@@ -14,6 +14,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Benchmark Tarang on NSL-KDD without test leakage.")
     parser.add_argument("--data-dir", type=Path, default=Path("data/nsl-kdd"))
     parser.add_argument("--output-dir", type=Path, default=Path("artifacts/nsl-kdd"))
+    parser.add_argument("--tune-weight", action="store_true", help="Select the hybrid fusion weight using validation F1; default benchmark keeps a pre-specified 50/50 blend.")
     args = parser.parse_args()
 
     train_path = args.data_dir / "KDDTrain+.txt"
@@ -24,7 +25,7 @@ def main() -> None:
     train_df = load_nsl_kdd(train_path)
     test_df = load_nsl_kdd(test_path)
 
-    model, validation = fit_hybrid(train_df)
+    model, validation = fit_hybrid(train_df, tune_weight=args.tune_weight)
     final_metrics = evaluate(model, test_df)
     final_metrics["validation_metrics"] = validation
     final_metrics["rows"]["train"] = len(train_df)
