@@ -25,3 +25,19 @@ def test_binary_labels_and_preprocessor():
     transformed = preprocessor.fit_transform(frame[NSLKDD_COLUMNS[:-2]])
     assert transformed.shape[0] == 20
     assert transformed.shape[1] > len(NSLKDD_COLUMNS) - 2
+
+
+def test_nsl_kdd_loader_tab_delimited(tmp_path):
+    path = tmp_path / "KDDTest+.txt"
+    row = "\t".join([
+        "0", "tcp", "http", "SF", "10", "20", "0", "0", "0", "0",
+        "0", "1", "0", "0", "0", "0", "0", "0", "0", "0", "0",
+        "0", "1", "1", "0", "0", "0", "0", "1", "0", "0", "10",
+        "10", "1.0", "0.0", "1.0", "0.0", "0.0", "0.0", "1.0",
+        "0.0", "normal", "21"
+    ])
+    path.write_text(row + "\n", encoding="utf-8")
+    from tarang.benchmark import load_nsl_kdd
+    loaded = load_nsl_kdd(path)
+    assert list(loaded.columns) == NSLKDD_COLUMNS
+    assert loaded.iloc[0]["label"] == "normal"
