@@ -50,6 +50,7 @@ class HybridBenchmarkModel:
     if_threshold: float
     rf_threshold: float
     hybrid_threshold: float
+    hybrid_weight: float
     if_min: float
     if_max: float
     feature_names: list[str]
@@ -160,8 +161,13 @@ def fit_hybrid(train_df: pd.DataFrame, validation_size: float = 0.20, random_sta
 
     if_min, if_max = float(if_scores.min()), float(if_scores.max())
     if_norm = _minmax(if_scores, if_min, if_max)
-    hybrid_score = 0.5 * if_norm + 0.5 * rf_scores
-    hybrid_threshold, _ = _best_threshold(y_val, hybrid_score)
+    best_weight, best_threshold, best_f1 = 0.5, 0.5, -1.0
+    for weight in np.linspace(0.1, 0.9, 17):
+        candidate_score = weight * if_norm + (1.0 - weight) * rf_scores
+        candidate_threshold, candidate_f1 = _best_threshold(y_val, candidate_score)
+        if candidate_f1 > best_f1:
+            best_weight, best_threshold, best_f1 = float(weight), candidate_threshold, candidate_f1
+    hybrid_threshold = best_threshold
 
     model = HybridBenchmarkModel(
         preprocessor=preprocessor,
@@ -170,6 +176,7 @@ def fit_hybrid(train_df: pd.DataFrame, validation_size: float = 0.20, random_sta
         if_threshold=if_threshold,
         rf_threshold=rf_threshold,
         hybrid_threshold=hybrid_threshold,
+        hybrid_weight=best_weight,
         if_min=if_min,
         if_max=if_max,
         feature_names=list(preprocessor.get_feature_names_out()),
@@ -189,7 +196,7 @@ def evaluate(model: HybridBenchmarkModel, test_df: pd.DataFrame) -> dict:
     if_scores = -model.anomaly_model.decision_function(X_test)
     rf_scores = model.classifier.predict_proba(X_test)[:, 1]
     if_norm = _minmax(if_scores, model.if_min, model.if_max)
-    hybrid_score = 0.5 * if_norm + 0.5 * rf_scores
+    hybrid_score = model.hybrid_weight * if_norm + (1.0 - model.hybrid_weight) * rf_scores
 
     predictions = {
         "isolation_forest": (if_scores >= model.if_threshold).astype(int),
@@ -225,6 +232,7 @@ def evaluate(model: HybridBenchmarkModel, test_df: pd.DataFrame) -> dict:
             "isolation_forest": model.if_threshold,
             "random_forest": model.rf_threshold,
             "hybrid": model.hybrid_threshold,
+            "hybrid_weight": model.hybrid_weight,
         },
         "metrics": metrics,
     }
@@ -252,6 +260,7 @@ def benchmark_predictions(model: HybridBenchmarkModel, test_df: pd.DataFrame) ->
     frame["if_predicted"] = (if_scores >= model.if_threshold).astype(int)
     frame["rf_attack_probability"] = rf_scores
     frame["rf_predicted"] = (rf_scores >= model.rf_threshold).astype(int)
+    frame["hybrid_weight"] = model.hybrid_weight
     frame["hybrid_score"] = hybrid_score
     frame["hybrid_predicted"] = (hybrid_score >= model.hybrid_threshold).astype(int)
     return frame
