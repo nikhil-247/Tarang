@@ -8,7 +8,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from tarang.benchmark import evaluate, fit_hybrid, load_nsl_kdd, save_bundle
+from tarang.benchmark import benchmark_predictions, evaluate, fit_hybrid, load_nsl_kdd, save_bundle
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Benchmark Tarang on NSL-KDD without test leakage.")
@@ -30,9 +30,11 @@ def main() -> None:
     final_metrics["rows"]["train"] = len(train_df)
 
     save_bundle(model, final_metrics, len(train_df), args.output_dir)
-    (args.output_dir / "test_predictions.csv").write_text(
-        json.dumps(final_metrics, indent=2),
-        encoding="utf-8"
+    predictions = benchmark_predictions(model, test_df)
+    predictions.to_csv(args.output_dir / "test_predictions.csv", index=False)
+    (args.output_dir / "benchmark_protocol.json").write_text(
+        json.dumps(final_metrics["protocol"], indent=2),
+        encoding="utf-8",
     )
 
     print("\nNSL-KDD benchmark — untouched test set")
