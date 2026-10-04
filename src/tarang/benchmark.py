@@ -238,3 +238,20 @@ def save_bundle(model: HybridBenchmarkModel, metrics: dict, train_rows: int, dir
     payload["feature_count_after_encoding"] = len(model.feature_names)
     (directory / "metrics.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
     pd.Series(model.feature_names, name="feature").to_csv(directory / "features.csv", index=False)
+
+def benchmark_predictions(model: HybridBenchmarkModel, test_df: pd.DataFrame) -> pd.DataFrame:
+    """Return per-record benchmark predictions without exposing test labels to training."""
+    X_test = model.transform(test_df)
+    if_scores = -model.anomaly_model.decision_function(X_test)
+    rf_scores = model.classifier.predict_proba(X_test)[:, 1]
+    if_norm = _minmax(if_scores, model.if_min, model.if_max)
+    hybrid_score = 0.5 * if_norm + 0.5 * rf_scores
+    frame = test_df[["label", "difficulty"]].copy()
+    frame["true_binary"] = binary_labels(test_df)
+    frame["if_score"] = if_scores
+    frame["if_predicted"] = (if_scores >= model.if_threshold).astype(int)
+    frame["rf_attack_probability"] = rf_scores
+    frame["rf_predicted"] = (rf_scores >= model.rf_threshold).astype(int)
+    frame["hybrid_score"] = hybrid_score
+    frame["hybrid_predicted"] = (hybrid_score >= model.hybrid_threshold).astype(int)
+    return frame
